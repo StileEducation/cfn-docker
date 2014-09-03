@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+
+import os
+import logging
+import argparse
+import boto.utils
+import docker
+import subprocess
+import json
+
+CONFIG_DIR = '/var/lib/cfn-docker'
+METADATA_FILE = CONFIG_DIR + '/metadata.json'
+logger = logging.getLogger('cfn-docker')
+docker_client = docker.Client()
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+
+    if not os.path.isdir(CONFIG_DIR):
+        os.mkdir(CONFIG_DIR)
+
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    fetch_parser = subparsers.add_parser('fetch', help='Fetch configuration from CloudFormation metadata')
+    fetch_parser.set_defaults(func=fetch)
+    fetch_parser.add_argument('--stack-name', required=True, help="CloudFormation stack name")
+    fetch_parser.add_argument('--resource-name', required=True, help="CloudFormation resource in stack")
+
+    up_parser = subparsers.add_parser('up', help='Ensure all containers in the fetched CloudFormation metadata are running')
+    fetch_parser.add_argument('--delete', help="Stop and delete containers that are not specified in the metadata")
+    up_parser.set_defaults(func=up)
+
+    # Parse arguments and run selected subcommand.
+    # Subcommands register their main function in argparse as a default for `func`.
+    args = parser.parse_args()
+    args.func(args)
+
+def fetch(args):
+    instance_metadata = boto.utils.get_instance_metadata()
+    region = instance_metadata['placement']['availability-zone'][:-1]   # TODO: feels hacky
+
+    # Call out to cfn-get-metadata instead of using boto because it uses special CFN authentication
+    # that requires no credentials.
+    out, err = subprocess.Popen(['/opt/aws/bin/cfn-get-metadata',
+        '--region', region,
+        '-s', args.stack_name,
+        '-r', args.resource_name,
+        '-k', 'Docker'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+    # TODO: check exit code
+
+    # Parse and write out metdata
+    docker_metadata = json.loads(out)
+    # TODO: validate schema
+    with open(METADATA_FILE, 'w') as f:
+        f.write(json.dumps(docker_metadata, indent=4))
+
+def up(args):
+    with open(METADATA_FILE, 'r') as f:
+        docker_metadata = json.load(f)
+
+    for name, config in docker_metadata['containers'].items():
+        if not image_exists(config['image']):
+            logger.info('Pulling image %s' % (config['image']))
+            docker_client.pull(config['image'])
+
+        if container_exists(name) and configuration_changed(name, config):
+            logger.info('Configuration has changed. Removing container %s' % (name))
+            if container_running(name):
+                docker_client.kill(name)
+            docker_client.remove_container(name)
+
+        if not container_exists(name):
+            logger.info('Creating container %s' % (name))
+            docker_client.create_container(config['image'], name=name, environment=config.get('environment', None))
+
+        if not container_running(name):
+            logger.info('Starting container %s' % (name))
+            docker_client.start(name, binds=None, port_bindings=config.get('ports', None), links=None)
+
+# Docker API utility functions
+def container_exists(name):
+    full_name = '/%s' % (name)
+    return any(full_name in i['Names'] for i in docker_client.containers(all=True))
+
+def image_exists(name):
+    # TODO: append :latest if there is not tag
+    return any(name in i['RepoTags'] for i in docker_client.images())
+
+def configuration_changed(name, new_config):
+    container = docker_client.inspect_container(name)
+
+    # TODO: detect more interesting changes
+    # container['Config']['Env']
+    # container['HostConfig']['PortBindings']
+    # volumes
+    # links
+
+    return any([
+        container['Config']['Image'] != new_config['image']
+    ])
+
+def container_running(name):
+    container = docker_client.inspect_container(name)
+    return container['State']['Running']
+
+if __name__ == "__main__":
+    main()
