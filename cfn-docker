@@ -7,6 +7,7 @@ import boto.utils
 import docker
 import subprocess
 import json
+import urllib2
 
 CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
@@ -59,6 +60,12 @@ def up(args):
     with open(METADATA_FILE, 'r') as f:
         docker_metadata = json.load(f)
 
+    # Look for special environment variable functions
+    for container in docker_metadata['containers'].values():
+        for key, value in container.get('environment', {}).items():
+            if type(value) is dict and len(value) == 1:
+                container['environment'][key] = env_function(value)
+
     for name, config in docker_metadata['containers'].items():
         if not image_exists(config['image']):
             logger.info('Pulling image %s' % (config['image']))
@@ -103,6 +110,17 @@ def configuration_changed(name, new_config):
 def container_running(name):
     container = docker_client.inspect_container(name)
     return container['State']['Running']
+
+
+# Environment variable functions
+def env_function(value):
+    fn = value.keys()[0]
+    arg = value.values()[0]
+
+    if fn == 'cfn-docker::url':
+        return urllib2.urlopen(arg).read()
+    else:
+        raise Exception('Unknown function: %s' % (fn))
 
 if __name__ == "__main__":
     main()
