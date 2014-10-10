@@ -12,6 +12,8 @@ import urllib2
 CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
+logging.basicConfig(filename='/var/log/cfn-docker',level=logging.INFO)
+
 docker_client = docker.Client()
 
 def main():
@@ -62,9 +64,18 @@ def up(args):
 
     # Look for special environment variable functions
     for container in docker_metadata['containers'].values():
+
         for key, value in container.get('environment', {}).items():
             if type(value) is dict and len(value) == 1:
                 container['environment'][key] = env_function(value)
+
+        # There are also environemnts in the prestarts, so look there too.
+        for beforeStart in container.get('beforeStart' , []):
+
+            for key, value in beforeStart.get('environment', {}).items():
+                if type(value) is dict and len(value) == 1:
+                    beforeStart['environment'][key] = env_function(value)
+
 
     for name, config in docker_metadata['containers'].items():
         if not image_exists(config['image']):
@@ -77,7 +88,23 @@ def up(args):
                 docker_client.kill(name)
             docker_client.remove_container(name)
 
+
         if not container_exists(name):
+
+            # Run any commands that need to happen before the container starts
+            for beforeStart in config.get('beforeStart', []):
+                logger.info('Running %s beforeStart for command %s' % (name, beforeStart.get('command', "")))
+
+                # The beforeStart environment is also has the normal container environment
+                beforeStartEnvironment = dict(config['environment'].items() + beforeStart['environment'].items())
+                container_name = "%s-pre" % (name)
+
+                docker_client.create_container(config['image'], name=container_name, environment=beforeStartEnvironment, command=beforeStart.get('command', None))
+                docker_client.start(container_name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
+                exit_code = docker_client.wait(container_name)
+                logger.info(docker_client.logs(container_name))
+                docker_client.remove_container(container_name)
+
             logger.info('Creating container %s' % (name))
             docker_client.create_container(config['image'], name=name, environment=config.get('environment', None))
 
