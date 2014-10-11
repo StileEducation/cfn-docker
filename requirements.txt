@@ -1,2 +1,2 @@
 boto>=2.30
-docker-py>=0.4.0
+docker-py>=0.5.0
