@@ -110,7 +110,7 @@ def up(args):
 
         if not container_running(name):
             logger.info('Starting container %s' % (name))
-            docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
+            docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None, restart_policy={ "Name": "always" })
 
 # Docker API utility functions
 def container_exists(name):
