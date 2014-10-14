@@ -13,6 +13,7 @@ CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
 logging.basicConfig(filename='/var/log/cfn-docker',level=logging.INFO)
+logging.getLogger().addHandler(logging.StreamHandler())
 
 docker_client = docker.Client()
 
