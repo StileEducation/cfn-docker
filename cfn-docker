@@ -13,6 +13,7 @@ CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
 logging.basicConfig(filename='/var/log/cfn-docker',level=logging.INFO)
+logging.getLogger().addHandler(logging.StreamHandler())
 
 docker_client = docker.Client()
 
@@ -31,8 +32,13 @@ def main():
     fetch_parser.add_argument('--resource-name', required=True, help="CloudFormation resource in stack")
 
     up_parser = subparsers.add_parser('up', help='Ensure all containers in the fetched CloudFormation metadata are running')
-    fetch_parser.add_argument('--delete', help="Stop and delete containers that are not specified in the metadata")
+    # up_parser.add_argument('--delete', help="Stop and delete containers that are not specified in the metadata")
     up_parser.set_defaults(func=up)
+
+    run_parser = subparsers.add_parser('run', help='Ensure all containers in the fetched CloudFormation metadata are running')
+    run_parser.add_argument('--container', help="Container type to execute command in.")
+    run_parser.add_argument('--command', help="Command to pass to the container")
+    run_parser.set_defaults(func=run)
 
     # Parse arguments and run selected subcommand.
     # Subcommands register their main function in argparse as a default for `func`.
@@ -78,9 +84,7 @@ def up(args):
 
 
     for name, config in docker_metadata['containers'].items():
-        if not image_exists(config['image']):
-            logger.info('Pulling image %s' % (config['image']))
-            docker_client.pull(config['image'])
+        ensure_image(config['image'])
 
         if container_exists(name) and configuration_changed(name, config):
             logger.info('Configuration has changed. Removing container %s' % (name))
@@ -112,6 +116,35 @@ def up(args):
             logger.info('Starting container %s' % (name))
             docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None, restart_policy={ "Name": "always" })
 
+def run(args):
+    with open(METADATA_FILE, 'r') as f:
+        docker_metadata = json.load(f)
+
+    config = docker_metadata['containers'].get(args.container)
+    if config:
+        ensure_image(config['image'])
+
+        # Substitute environment variables
+        for key, value in config.get('environment', {}).items():
+            if type(value) is dict and len(value) == 1:
+                config['environment'][key] = env_function(value)
+
+        command = ['/usr/bin/docker', 'run', '-t', '-i']
+
+        for k, v in config.get('environment', {}).iteritems():
+            command.append('-e')
+            command.append("%s=%s" % (k ,v))
+
+        command.append(config['image'])
+        command.append(args.command)
+
+        logger.info('Launching %s with command %s' % (args.container, args.command))
+        subprocess.call(command)
+    else:
+        logger.info('Could not find container type %s' % (args.container))
+
+
+
 # Docker API utility functions
 def container_exists(name):
     full_name = '/%s' % (name)
@@ -120,6 +153,12 @@ def container_exists(name):
 def image_exists(name):
     # TODO: append :latest if there is not tag
     return any(name in i['RepoTags'] for i in docker_client.images())
+
+def ensure_image(name):
+    if not image_exists(name):
+        logger.info('Pulling image %s' % (name))
+        docker_client.pull(name)
+        logger.info('Finished pulling image %s' % (name))
 
 def configuration_changed(name, new_config):
     container = docker_client.inspect_container(name)
