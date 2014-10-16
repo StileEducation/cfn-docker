@@ -32,11 +32,12 @@ def main():
     fetch_parser.add_argument('--resource-name', required=True, help="CloudFormation resource in stack")
 
     up_parser = subparsers.add_parser('up', help='Ensure all containers in the fetched CloudFormation metadata are running')
-    # up_parser.add_argument('--delete', help="Stop and delete containers that are not specified in the metadata")
+    up_parser.add_argument('--container', '-c', help="Only a specific container, rather than all known container types")
+    up_parser.add_argument('--restart', '-r', action='store_true', help="Force restart container(s)")
     up_parser.set_defaults(func=up)
 
     run_parser = subparsers.add_parser('run', help='Ensure all containers in the fetched CloudFormation metadata are running')
-    run_parser.add_argument('--container', help="Container type to execute command in.")
+    run_parser.add_argument('--container', '-c', help="Container type to execute command in.")
     run_parser.add_argument('--command', help="Command to pass to the container")
     run_parser.set_defaults(func=run)
 
@@ -82,39 +83,18 @@ def up(args):
                 if type(value) is dict and len(value) == 1:
                     beforeStart['environment'][key] = env_function(value)
 
+    if args.container:
+        config = docker_metadata['containers'].get(args.container)
+        if config:
+            run_single(args.container, config, args.restart)
+        else:
+            logger.info('Could not find container type %s' % (args.container))
 
-    for name, config in docker_metadata['containers'].items():
-        ensure_image(config['image'])
-
-        if container_exists(name) and configuration_changed(name, config):
-            logger.info('Configuration has changed. Removing container %s' % (name))
-            if container_running(name):
-                docker_client.kill(name)
-            docker_client.remove_container(name)
+    else:
+        for name, config in docker_metadata['containers'].items():
+            run_single(name, config, args.restart)
 
 
-        if not container_exists(name):
-
-            # Run any commands that need to happen before the container starts
-            for beforeStart in config.get('beforeStart', []):
-                logger.info('Running %s beforeStart for command %s' % (name, beforeStart.get('command', "")))
-
-                # The beforeStart environment is also has the normal container environment
-                beforeStartEnvironment = dict(config['environment'].items() + beforeStart['environment'].items())
-                container_name = "%s-pre" % (name)
-
-                docker_client.create_container(config['image'], name=container_name, environment=beforeStartEnvironment, command=beforeStart.get('command', None))
-                docker_client.start(container_name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
-                exit_code = docker_client.wait(container_name)
-                logger.info(docker_client.logs(container_name))
-                docker_client.remove_container(container_name)
-
-            logger.info('Creating container %s' % (name))
-            docker_client.create_container(config['image'], name=name, environment=config.get('environment', None))
-
-        if not container_running(name):
-            logger.info('Starting container %s' % (name))
-            docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None, restart_policy={ "Name": "always" })
 
 def run(args):
     with open(METADATA_FILE, 'r') as f:
@@ -144,6 +124,42 @@ def run(args):
         logger.info('Could not find container type %s' % (args.container))
 
 
+def run_single(name, config, restart=False):
+    ensure_image(config['image'])
+
+    if container_exists(name) and configuration_changed(name, config):
+        logger.info('Configuration has changed. Removing container %s' % (name))
+        if container_running(name):
+            docker_client.kill(name)
+        docker_client.remove_container(name)
+
+
+    if not container_exists(name):
+
+        # Run any commands that need to happen before the container starts
+        for beforeStart in config.get('beforeStart', []):
+            logger.info('Running %s beforeStart for command %s' % (name, beforeStart.get('command', "")))
+
+            # The beforeStart environment is also has the normal container environment
+            beforeStartEnvironment = dict(config['environment'].items() + beforeStart['environment'].items())
+            container_name = "%s-pre" % (name)
+
+            docker_client.create_container(config['image'], name=container_name, environment=beforeStartEnvironment, command=beforeStart.get('command', None))
+            docker_client.start(container_name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
+            exit_code = docker_client.wait(container_name)
+            logger.info(docker_client.logs(container_name))
+            docker_client.remove_container(container_name)
+
+        logger.info('Creating container %s' % (name))
+        docker_client.create_container(config['image'], name=name, environment=config.get('environment', None))
+
+    if not container_running(name):
+        logger.info('Starting container %s' % (name))
+        docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None, restart_policy={ "Name": "always" })
+    else: #If the container is actually running
+        if restart:
+            logger.info('Restarting container %s' % (name))
+            docker_client.restart(name, timeout=10)
 
 # Docker API utility functions
 def container_exists(name):
