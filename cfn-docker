@@ -155,7 +155,7 @@ def run_single(name, config, restart=False):
 
     if not container_running(name):
         logger.info('Starting container %s' % (name))
-        docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None, restart_policy={ "Name": "always" })
+        docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=config.get('links', None), restart_policy={ "Name": "always" })
     else: #If the container is actually running
         if restart:
             logger.info('Restarting container %s' % (name))
