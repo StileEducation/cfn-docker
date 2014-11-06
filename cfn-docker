@@ -8,6 +8,7 @@ import docker
 import subprocess
 import json
 import urllib2
+from tsort import topological_sort
 
 CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
@@ -91,10 +92,8 @@ def up(args):
             logger.info('Could not find container type %s' % (args.container))
 
     else:
-        for name, config in docker_metadata['containers'].items():
+        for name, config in dependency_sort(docker_metadata['containers']):
             run_single(name, config, args.restart)
-
-
 
 def run(args):
     with open(METADATA_FILE, 'r') as f:
@@ -203,6 +202,26 @@ def env_function(value):
         return urllib2.urlopen(arg).read()
     else:
         raise Exception('Unknown function: %s' % (fn))
+
+# Sort containers dict in dependency order using t-sort and return a list of (name, config) pairs
+def dependency_sort(containers_dict):
+    dependencies = []
+
+    # Build dependency DAG for links
+    for name, config in containers_dict.items():
+        links = config.get('links', {}).keys()
+        for link in links:
+            dependencies.append((link, name))
+
+    sorted_names = topological_sort(dependencies)
+
+    # sorted_names only includes containers that had dependencies - add any that are missing
+    missing_names = list(set(containers_dict.keys()) - set(sorted_names))
+    sorted_names.extend(missing_names)
+
+    ordered_configs = map(lambda k: containers_dict[k], sorted_names)
+
+    return zip(sorted_names, ordered_configs)
 
 if __name__ == "__main__":
     main()
