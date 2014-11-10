@@ -13,8 +13,6 @@ from tsort import topological_sort
 CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
-logging.basicConfig(filename='/tmp/cfn-docker.log',level=logging.INFO)
-logging.getLogger().addHandler(logging.StreamHandler())
 
 docker_client = docker.Client()
 
