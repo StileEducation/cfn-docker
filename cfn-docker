@@ -69,7 +69,7 @@ def up(args):
         docker_metadata = json.load(f)
 
     # Look for special environment variable functions
-    for container in docker_metadata['containers'].values():
+    for container in docker_metadata.get('containers', {}).values():
 
         for key, value in container.get('environment', {}).items():
             if type(value) is dict and len(value) == 1:
