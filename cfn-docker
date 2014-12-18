@@ -31,6 +31,7 @@ def main():
     fetch_parser.add_argument('--resource-name', required=True, help="CloudFormation resource in stack")
 
     up_parser = subparsers.add_parser('up', help='Ensure all containers in the fetched CloudFormation metadata are running')
+    up_parser.add_argument('--force-pull', '-f', action='store_true', help="Force docker to pull from repo, even if it already has a local copy.")
     up_parser.add_argument('--container', '-c', help="Only a specific container, rather than all known container types")
     up_parser.add_argument('--restart', '-r', action='store_true', help="Force restart container(s)")
     up_parser.set_defaults(func=up)
@@ -91,7 +92,7 @@ def up(args):
 
     else:
         for name, config in dependency_sort(docker_metadata['containers']):
-            run_single(name, config, args.restart)
+            run_single(name, config, restart=args.restart, forcePull=args.force_pull)
 
 def run(args):
     with open(METADATA_FILE, 'r') as f:
@@ -121,8 +122,17 @@ def run(args):
         logger.info('Could not find container type %s' % (args.container))
 
 
-def run_single(name, config, restart=False):
+def run_single(name, config, restart=False, forcePull=False):
     ensure_image(config['image'])
+
+    #
+    if forcePull:
+        docker_client.pull(config['image'])
+        # If there is already a container, remove it so it gets recreated below.
+        if container_exists(name):
+            if container_running(name):
+                docker_client.kill(name)
+            docker_client.remove_container(name)
 
     if container_exists(name) and configuration_changed(name, config):
         logger.info('Configuration has changed. Removing container %s' % (name))
