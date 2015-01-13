@@ -77,7 +77,7 @@ def status(args):
         docker_metadata = json.load(f)
 
     for container_name in docker_metadata.get('containers', {}):
-        if container_running(container_name):
+        if container_exists(container_name) and container_running(container_name):
             print container_name + '\t RUNNING'
         else:
             print container_name + '\t STOPPED'
