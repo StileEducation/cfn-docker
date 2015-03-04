@@ -190,7 +190,14 @@ def run_single(name, config, restart=False, forcePull=False):
             docker_client.remove_container(container_name)
 
         logger.info('Creating container %s' % (name))
-        docker_client.create_container(config['image'], name=name, environment=config.get('environment', None), command=config.get('command', None), hostname=os.environ["HOSTNAME"])
+
+        # Add instance's AZ to environment as DATACENTER
+        environment = config.get('environment', {})
+        instance_metadata = boto.utils.get_instance_metadata()
+        az = instance_metadata['placement']['availability-zone']
+        environment['DATACENTER'] = az
+
+        docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=os.environ["HOSTNAME"])
 
     if not container_running(name):
         logger.info('Starting container %s' % (name))
