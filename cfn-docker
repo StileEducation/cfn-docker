@@ -195,7 +195,7 @@ def run_single(name, config, restart=False, forcePull=False):
         environment = config.get('environment', {})
         instance_metadata = boto.utils.get_instance_metadata()
         az = instance_metadata['placement']['availability-zone']
-        environment['DATACENTER'] = az
+        environment['DATACENTER'] = az[-1:] # AZ letter only (a, b, etc). Most shells don't like hyphens in environment variable names.
 
         docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=os.environ["HOSTNAME"])
 
