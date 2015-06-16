@@ -205,7 +205,7 @@ def run_single(name, config, restart=False, forcePull=False):
     else: #If the container is actually running
         if restart:
             logger.info('Restarting container %s' % (name))
-            docker_client.restart(name, timeout=10)
+            docker_client.restart(name, timeout=30)
 
 # Docker API utility functions
 def container_exists(name):
