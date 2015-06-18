@@ -113,15 +113,9 @@ def up(args):
             logger.info('Could not find container type %s' % (args.container))
 
     else:
-        # Pull all the containers concurrently.
-        threads = []
+        # Pull all the containers
         for name, config in docker_metadata['containers'].iteritems():
-            thread = Thread(target=ensure_image, args=(config['image'],))
-            threads += [thread]
-            thread.start()
-
-        for x in threads:
-            x.join()
+            ensure_image(config['image'])
 
         for name, config in dependency_sort(docker_metadata['containers']):
             run_single(name, config, restart=args.restart, forcePull=args.force_pull)
