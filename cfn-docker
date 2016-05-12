@@ -16,7 +16,8 @@ CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
 
-docker_client = docker.Client()
+# This version works with docker 1.9 in production for us
+docker_client = docker.Client(version='1.21')
 
 def main():
     logging.basicConfig(level=logging.INFO)
