@@ -16,7 +16,8 @@ CONFIG_DIR = '/var/lib/cfn-docker'
 METADATA_FILE = CONFIG_DIR + '/metadata.json'
 logger = logging.getLogger('cfn-docker')
 
-docker_client = docker.Client()
+# This version works with docker 1.9 in production for us
+docker_client = docker.Client(version='1.21')
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -180,6 +181,7 @@ def run_single(name, config, restart=False, forcePull=False):
 
             # The beforeStart environment is also has the normal container environment
             beforeStartEnvironment = dict(config['environment'].items() + beforeStart['environment'].items())
+            beforeStartEnvironment['HOST_HOSTNAME'] = os.environ["HOSTNAME"]
             container_name = "%s-pre" % (name)
 
             docker_client.create_container(config['image'], name=container_name, environment=beforeStartEnvironment, command=beforeStart.get('command', None), hostname=os.environ["HOSTNAME"])
@@ -195,6 +197,11 @@ def run_single(name, config, restart=False, forcePull=False):
         instance_metadata = boto.utils.get_instance_metadata()
         az = instance_metadata['placement']['availability-zone']
         environment['DATACENTER'] = az[-1:] # AZ letter only (a, b, etc). Most shells don't like hyphens in environment variable names.
+        # Plumb through the host's hostname into and env var
+        # Although this is currently also being pushed through as HOSTNAME in the container,
+        # we want to stop doing that because it shadows the container id (which docker sets
+        # to HOSTNAME by default)
+        environment['HOST_HOSTNAME'] = os.environ["HOSTNAME"]
 
         docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=os.environ["HOSTNAME"])
 
