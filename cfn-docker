@@ -133,7 +133,12 @@ def run(args):
             if type(value) is dict and len(value) == 1:
                 config['environment'][key] = env_function(value)
 
-        command = ['/usr/bin/docker', 'run', '-t', '-i']
+        command = ['/usr/bin/docker', 'run', '-i']
+        # Allocate a TTY when being used on stdin (which will be the user's expectation)
+        # Don't do this otherwise, because we call this over an SSH pipe from the new
+        # deploy-server-2 to run stuff
+        if sys.stdout.isatty():
+            command += ['-t']
 
         for k, v in config.get('environment', {}).iteritems():
             command.append('-e')
