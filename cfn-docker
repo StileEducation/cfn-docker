@@ -185,10 +185,12 @@ def run_single(name, config, restart=False, forcePull=False):
             container_name = "%s-pre" % (name)
 
             docker_client.create_container(config['image'], name=container_name, environment=beforeStartEnvironment, command=beforeStart.get('command', None), hostname=os.environ["HOSTNAME"])
-            docker_client.start(container_name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
-            exit_code = docker_client.wait(container_name)
-            logger.info(docker_client.logs(container_name))
-            docker_client.remove_container(container_name)
+            try:
+                docker_client.start(container_name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=None)
+                exit_code = docker_client.wait(container_name)
+                logger.info(docker_client.logs(container_name))
+            finally:
+                docker_client.remove_container(container_name)
 
         logger.info('Creating container %s' % (name))
 
