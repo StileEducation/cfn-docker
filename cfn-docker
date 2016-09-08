@@ -206,7 +206,25 @@ def run_single(name, config, restart=False, forcePull=False):
         # to HOSTNAME by default)
         environment['HOST_HOSTNAME'] = socket.gethostname()
 
-        docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=socket.gethostname())
+        # By default, we are setting the hostname in the container to the hostname of the host
+        # This adds an entry like "172.x.x.x host.hostname.au.s522.net" in the /etc/hosts file
+        # This means that processes inside the container cannot actually connect to the real "host.hostname.au.s522.net"
+        # This is Really Annoying for the mongo MMS monitor, which gets the hostnames to connect to mongo from the
+        # cloud service - so the FQDN needs to work.
+        hostname_config = config.get('hostname', None)
+        if hostname_config is None:
+            container_hostname = socket.gethostname()
+        elif isinstance(hostname_config, dict):
+            if hostname_config.get('cfn-docker::default-hostname', False):
+                container_hostname = None
+            else:
+                container_hostname = socket.gethostname()
+        elif isinstance(hostname_config, basestring):
+            container_hostname = hostname_config
+        else:
+            raise Exception('unknown hostname format %s' % hostname_config)
+
+        docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=container_hostname)
 
     if not container_running(name):
         logger.info('Starting container %s' % (name))
