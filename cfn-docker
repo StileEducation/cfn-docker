@@ -224,11 +224,30 @@ def run_single(name, config, restart=False, forcePull=False):
         else:
             raise Exception('unknown hostname format %s' % hostname_config)
 
-        docker_client.create_container(config['image'], name=name, environment=environment, command=config.get('command', None), hostname=container_hostname)
+        # Cloudformation turns our bools into strings...
+        privileged = config.get('privileged', False)
+        if not isinstance(privileged, bool):
+            privileged = (privileged.lower() == 'true')
+
+        docker_client.create_container(
+            config['image'],
+            name=name,
+            environment=environment,
+            command=config.get('command', None),
+            hostname=container_hostname,
+            host_config=docker_client.create_host_config(
+                binds=config.get('volumes', None),
+                port_bindings=config.get('ports', None),
+                links=config.get('links', None),
+                restart_policy={ "Name": "always" },
+                network_mode=config.get('net', 'bridge'),
+                privileged=privileged,
+            )
+        )
 
     if not container_running(name):
         logger.info('Starting container %s' % (name))
-        docker_client.start(name, binds=config.get('volumes', None), port_bindings=config.get('ports', None), links=config.get('links', None), restart_policy={ "Name": "always" })
+        docker_client.start(name)
     else: #If the container is actually running
         if restart:
             logger.info('Restarting container %s' % (name))
