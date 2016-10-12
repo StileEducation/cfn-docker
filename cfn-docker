@@ -242,6 +242,7 @@ def run_single(name, config, restart=False, forcePull=False):
                 restart_policy={ "Name": "always" },
                 network_mode=config.get('net', 'bridge'),
                 privileged=privileged,
+                ulimits=config.get('ulimits', None)
             )
         )
 
