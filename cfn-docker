@@ -229,6 +229,12 @@ def run_single(name, config, restart=False, forcePull=False):
         if not isinstance(privileged, bool):
             privileged = (privileged.lower() == 'true')
 
+        # and also our ints into strings
+        for limit in config.get('ulimits', []):
+            for k in ('soft', 'hard', 'Soft', 'Hard'):
+                if k in limit:
+                    limit[k] = int(limit[k])
+
         docker_client.create_container(
             config['image'],
             name=name,
