@@ -267,7 +267,7 @@ def container_exists(name):
 
 def image_exists(name):
     # TODO: append :latest if there is not tag
-    return any(name in i['RepoTags'] for i in docker_client.images())
+    return any(name in i['RepoTags'] for i in docker_client.images() if i.get('RepoTags', None) is not None)
 
 def ensure_image(name):
     if not image_exists(name):
