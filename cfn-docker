@@ -206,16 +206,16 @@ def run_single(name, config, restart=False, forcePull=False):
         # to HOSTNAME by default)
         environment['HOST_HOSTNAME'] = socket.gethostname()
 
-        # The SYSLOG_HOST_ADDR needs to be the address of the host.
+        # The SYSLOG_ADDR_HOST needs to be the address of the host.
         # THat is either localhost if the container is running in host network mode, or the address of the host
         # on the bridge in bridge mode.
         net_mode = config.get('net', 'bridge')
         if net_mode == 'host':
-            environment['SYSLOG_HOST_ADDR'] = '127.0.0.1'
-            environment['SYSLOG_HOST_PORT'] = '514'
+            environment['SYSLOG_ADDR_HOST'] = '127.0.0.1'
+            environment['SYSLOG_ADDR_PORT'] = '514'
         elif net_mode == 'bridge':
-            environment['SYSLOG_HOST_ADDR'] = '172.17.0.1' # Hardcoded inside base image
-            environment['SYSLOG_HOST_PORT'] = '514'
+            environment['SYSLOG_ADDR_HOST'] = '172.17.0.1' # Hardcoded inside base image
+            environment['SYSLOG_ADDR_PORT'] = '514'
         else:
             # ?? What networking mode is this? I guess we'll omit the syslog configuration until someone comes in
             # and adds something sensible here.
