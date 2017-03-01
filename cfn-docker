@@ -211,11 +211,11 @@ def run_single(name, config, restart=False, forcePull=False):
         # on the bridge in bridge mode.
         net_mode = config.get('net', 'bridge')
         if net_mode == 'host':
-            environment['SYSLOG_HOST_ADDR'] == '127.0.0.1'
-            environment['SYSLOG_HOST_PORT'] == '514'
+            environment['SYSLOG_HOST_ADDR'] = '127.0.0.1'
+            environment['SYSLOG_HOST_PORT'] = '514'
         elif net_mode == 'bridge':
-            environment['SYSLOG_HOST_ADDR'] == '172.17.0.1' # Hardcoded inside base image
-            environment['SYSLOG_HOST_PORT'] == '514'
+            environment['SYSLOG_HOST_ADDR'] = '172.17.0.1' # Hardcoded inside base image
+            environment['SYSLOG_HOST_PORT'] = '514'
         else:
             # ?? What networking mode is this? I guess we'll omit the syslog configuration until someone comes in
             # and adds something sensible here.
