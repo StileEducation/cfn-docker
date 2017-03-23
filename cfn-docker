@@ -250,6 +250,10 @@ def run_single(name, config, restart=False, forcePull=False):
                 if k in limit:
                     limit[k] = int(limit[k])
 
+        cpu_shares = config.get('cpu_shares', None)
+        if not cpu_shares is None:
+            cpu_shares = int(cpu_shares)
+
         docker_client.create_container(
             config['image'],
             name=name,
@@ -263,7 +267,8 @@ def run_single(name, config, restart=False, forcePull=False):
                 restart_policy={ "Name": "always" },
                 network_mode=config.get('net', 'bridge'),
                 privileged=privileged,
-                ulimits=config.get('ulimits', None)
+                ulimits=config.get('ulimits', None),
+                cpu_shares=cpu_shares
             )
         )
 
