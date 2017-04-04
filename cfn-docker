@@ -254,12 +254,20 @@ def run_single(name, config, restart=False, forcePull=False):
         if not cpu_shares is None:
             cpu_shares = int(cpu_shares)
 
+        ports = None
+        if 'ports' in config:
+            # By default, the exposedPorts will be what was set in EXPOSE in the dockerfile
+            # If we are forwarding ports that were not exposed, this won't work.
+            # Hack by setting the exposed ports equal to the forwarded ports
+            ports = config['ports'].keys()
+
         docker_client.create_container(
             config['image'],
             name=name,
             environment=environment,
             command=config.get('command', None),
             hostname=container_hostname,
+            ports=ports,
             host_config=docker_client.create_host_config(
                 binds=config.get('volumes', None),
                 port_bindings=config.get('ports', None),
