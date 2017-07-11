@@ -276,7 +276,8 @@ def run_single(name, config, restart=False, forcePull=False):
                 network_mode=config.get('net', 'bridge'),
                 privileged=privileged,
                 ulimits=config.get('ulimits', None),
-                cpu_shares=cpu_shares
+                cpu_shares=cpu_shares,
+                ipc_mode=config.get('ipc', None)
             )
         )
 
