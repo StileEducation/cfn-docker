@@ -277,7 +277,8 @@ def run_single(name, config, restart=False, forcePull=False):
                 privileged=privileged,
                 ulimits=config.get('ulimits', None),
                 cpu_shares=cpu_shares,
-                ipc_mode=config.get('ipc', None)
+                ipc_mode=config.get('ipc', None),
+                pid_mode=config.get('pid', None)
             )
         )
 
